@@ -74,7 +74,7 @@ Settings → *Edit configuration…* opens `~/.config/hey-claude/config.env`:
 | `WORKDIR` | `$HOME` | Folder Claude Code starts in. Use one you have already trusted in Claude Code. |
 | `CLAUDE_ARGS` | *(empty)* | Extra `claude` flags, e.g. `--model opus` |
 | `PROMPT` | "Here is a screenshot…" | First message. `{screenshots}` becomes the image path(s). |
-| `TERMINAL_APP` | `terminal` | `terminal`, `iterm` or `cmux` |
+| `TERMINAL_APP` | `terminal` | `terminal`, `iterm` or `cmux`. For cmux, set its socket mode to Password and save a password (Settings → Automation, or `automation.socketControlMode` + `automation.socketPassword` in `cmux.json`). By default cmux only accepts commands from programs started inside it. |
 | `KEEP_SCREENSHOTS_DAYS` | `7` | Older screenshots in `~/.hey-claude/shots` are deleted |
 
 Changes apply on the next wake. A new `WAKE_PATTERN` is picked up within a minute.
