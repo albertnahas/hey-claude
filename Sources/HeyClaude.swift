@@ -1,5 +1,5 @@
-// Hey Claude: listens on-device for "Hey Claude" / "Hello Claude" and runs the bundled
-// hey-claude.sh (screenshot → Claude Code in tmux → terminal window attached to it).
+// Hey Claude: listens on-device for a wake phrase ("Hey Claude" by default) and runs the
+// bundled hey-claude.sh (screenshot → Claude Code in tmux → terminal window attached to it).
 
 import AVFoundation
 import AppKit
@@ -10,7 +10,6 @@ import SwiftUI
 private let home = FileManager.default.homeDirectoryForCurrentUser
 private let logURL = home.appendingPathComponent("Library/Logs/HeyClaude.log")
 private let configURL = home.appendingPathComponent(".config/hey-claude/config.env")
-private let defaultWakePattern = #"\b(hey|hello)\W+(claude|claud|clawed|cloud|clyde)\b"#
 
 private let logHandle: FileHandle = {
   if !FileManager.default.fileExists(atPath: logURL.path) {
@@ -25,29 +24,32 @@ func log(_ message: String) {
   logHandle.write(Data("\(ISO8601DateFormatter().string(from: Date())) \(message)\n".utf8))
 }
 
-/// Reads one KEY=value entry from the shell-style config file.
-func configValue(_ key: String) -> String? {
-  guard let text = try? String(contentsOf: configURL, encoding: .utf8) else { return nil }
-  for line in text.split(separator: "\n") where line.hasPrefix("\(key)=") {
-    let value = line.dropFirst(key.count + 1)
-    if let quote = value.first, quote == "'" || quote == "\"", value.count >= 2, value.last == quote {
-      return String(value.dropFirst().dropLast())
-    }
-    return String(value)
-  }
-  return nil
-}
-
 // MARK: - Wake-phrase listener
 
 final class WakeListener {
-  private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))!
+  /// Phrases that wake the app, matched as whole words, case-insensitively.
+  var phrases: [String] = [] {
+    didSet {
+      let alternatives = phrases.map { phrase in
+        phrase.split(whereSeparator: \.isWhitespace)
+          .map { NSRegularExpression.escapedPattern(for: String($0)) }
+          .joined(separator: #"\W+"#)
+      }
+      wakePattern = try! NSRegularExpression(
+        pattern: #"\b("# + alternatives.joined(separator: "|") + #")\b"#, options: .caseInsensitive)
+      if engine.isRunning { beginTask() }
+    }
+  }
+
+  // The system language when the recognizer supports it, otherwise US English.
+  private let recognizer =
+    SFSpeechRecognizer() ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))!
   private let engine = AVAudioEngine()
   private let lock = NSLock()
   private var request: SFSpeechAudioBufferRecognitionRequest?
   private var task: SFSpeechRecognitionTask?
   private var rotation: Timer?
-  private var wakePattern = try! NSRegularExpression(pattern: defaultWakePattern, options: .caseInsensitive)
+  private var wakePattern: NSRegularExpression?
   private let onWake: () -> Void
 
   init(onWake: @escaping () -> Void) { self.onWake = onWake }
@@ -64,7 +66,7 @@ final class WakeListener {
     engine.prepare()
     try engine.start()
     beginTask()
-    log("listening (on-device: \(recognizer.supportsOnDeviceRecognition))")
+    log("listening for \(phrases) in \(recognizer.locale.identifier) (on-device: \(recognizer.supportsOnDeviceRecognition))")
   }
 
   func stop() {
@@ -83,24 +85,14 @@ final class WakeListener {
     lock.unlock()
   }
 
-  private func reloadWakePattern() {
-    do {
-      wakePattern = try NSRegularExpression(
-        pattern: configValue("WAKE_PATTERN") ?? defaultWakePattern, options: .caseInsensitive)
-    } catch {
-      log("invalid WAKE_PATTERN, keeping the previous one: \(error)")
-    }
-  }
-
-  // One recognition task at a time, rotated every 50 s so transcripts stay short (and config
-  // edits apply), and after every detection so the same utterance never fires twice.
+  // One recognition task at a time, rotated every 50 s so transcripts stay short,
+  // and after every detection so the same utterance never fires twice.
   private func beginTask() {
     task?.cancel()
-    reloadWakePattern()
     let req = SFSpeechAudioBufferRecognitionRequest()
     req.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
     req.shouldReportPartialResults = true
-    req.contextualStrings = ["Claude", "Hey Claude", "Hello Claude"]
+    req.contextualStrings = phrases
     swapRequest(req)
     task = recognizer.recognitionTask(with: req) { [weak self] result, error in
       DispatchQueue.main.async { self?.handle(req, result, error) }
@@ -117,7 +109,7 @@ final class WakeListener {
   ) {
     guard req === request else { return }  // late callback from a rotated-out task
     if let text = result?.bestTranscription.formattedString,
-      wakePattern.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+      wakePattern?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     {
       log("wake: \(text)")
       beginTask()
@@ -136,10 +128,19 @@ final class WakeListener {
 // MARK: - State
 
 final class AppModel: ObservableObject {
+  static let defaultPhrases = "Hey Claude, Hello Claude"
+
   @Published var enabled = UserDefaults.standard.object(forKey: "enabled") as? Bool ?? true {
     didSet {
       UserDefaults.standard.set(enabled, forKey: "enabled")
       applyListening()
+    }
+  }
+  /// Comma-separated wake phrases, as typed in Settings.
+  @Published var wakePhrases = UserDefaults.standard.string(forKey: "wakePhrases") ?? defaultPhrases {
+    didSet {
+      UserDefaults.standard.set(wakePhrases, forKey: "wakePhrases")
+      listener.phrases = Self.parse(wakePhrases)
     }
   }
   @Published var openAtLogin = SMAppService.mainApp.status == .enabled {
@@ -152,8 +153,18 @@ final class AppModel: ObservableObject {
   private(set) var running = false
   var onChange: () -> Void = {}
 
-  private lazy var listener = WakeListener { [weak self] in self?.wake() }
+  private lazy var listener: WakeListener = {
+    let listener = WakeListener { [weak self] in self?.wake() }
+    listener.phrases = Self.parse(wakePhrases)
+    return listener
+  }()
   private var busy = false
+
+  private static func parse(_ text: String) -> [String] {
+    let phrases = text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+      .filter { !$0.isEmpty }
+    return phrases.isEmpty ? parse(defaultPhrases) : phrases
+  }
 
   func applyListening() {
     if enabled, !running {
@@ -196,18 +207,24 @@ final class AppModel: ObservableObject {
 
 struct SettingsView: View {
   @ObservedObject var model: AppModel
+  @State private var phrasesDraft = ""
 
   var body: some View {
     Form {
-      Toggle("Listen for \u{201C}Hey Claude\u{201D} / \u{201C}Hello Claude\u{201D}", isOn: $model.enabled)
+      Toggle("Listen for the wake phrase", isOn: $model.enabled)
+      TextField("Wake phrases", text: $phrasesDraft, prompt: Text(AppModel.defaultPhrases))
+        .onSubmit { model.wakePhrases = phrasesDraft }
+        .help("Separate phrases with commas. Press Return to apply.")
       Toggle("Open at login", isOn: $model.openAtLogin)
       HStack {
-        Button("Edit configuration…", action: model.openConfig)
+        Button("Edit session settings…", action: model.openConfig)
         Button("Show log", action: model.showLog)
       }
     }
     .padding(20)
-    .frame(width: 380)
+    .frame(width: 420)
+    .onAppear { phrasesDraft = model.wakePhrases }
+    .onDisappear { model.wakePhrases = phrasesDraft }
   }
 }
 
