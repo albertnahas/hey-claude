@@ -49,6 +49,7 @@ final class WakeListener {
   private var request: SFSpeechAudioBufferRecognitionRequest?
   private var task: SFSpeechRecognitionTask?
   private var rotation: Timer?
+  private var configObserver: NSObjectProtocol?
   private var wakePattern: NSRegularExpression?
   /// Set from the wake phrase until the speaker pauses: what they said after it.
   private var question: String?
@@ -74,11 +75,23 @@ final class WakeListener {
     }
     engine.prepare()
     try engine.start()
+    // A new mic or headset (or a call taking the input) stops the engine and changes the input
+    // format. Restart with a fresh tap, or the app keeps transcribing silence while looking alive.
+    configObserver = NotificationCenter.default.addObserver(
+      forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+    ) { [weak self] _ in
+      guard let self else { return }
+      log("audio input changed, restarting")
+      self.stop()
+      do { try self.start() } catch { log("restart failed: \(error)") }
+    }
     beginTask()
     log("listening for \(phrases) in \(recognizer.locale.identifier) (on-device: \(recognizer.supportsOnDeviceRecognition))")
   }
 
   func stop() {
+    configObserver.map(NotificationCenter.default.removeObserver)
+    configObserver = nil
     rotation?.invalidate()
     pause?.invalidate()
     question = nil
