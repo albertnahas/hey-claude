@@ -25,7 +25,7 @@ build="$src/build/HeyClaude.app"
 rm -rf "$src/build" && mkdir -p "$build/Contents/MacOS" "$build/Contents/Resources"
 swiftc -O -swift-version 5 Sources/HeyClaude.swift -o "$build/Contents/MacOS/HeyClaude"
 cp Resources/Info.plist "$build/Contents/"
-cp Resources/config.env "$build/Contents/Resources/"
+cp Resources/config.env Resources/AppIcon.icns "$build/Contents/Resources/"
 install -m 755 Resources/hey-claude.sh "$build/Contents/Resources/"
 # Your shell's PATH (minus temporary dirs), so the app finds claude, tmux and node
 # wherever you installed them.

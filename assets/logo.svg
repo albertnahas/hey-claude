@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#312E81"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FB923C"/>
+      <stop offset="1" stop-color="#EC4899"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <path d="M330 270H694A100 100 0 0 1 794 370V590A100 100 0 0 1 694 690H440L330 790L350 690H330A100 100 0 0 1 230 590V370A100 100 0 0 1 330 270Z" fill="#fff"/>
+  <g fill="url(#wave)">
+    <rect x="300" y="445" width="36" height="70" rx="18"/>
+    <rect x="366" y="405" width="36" height="150" rx="18"/>
+    <rect x="432" y="360" width="36" height="240" rx="18"/>
+    <rect x="494" y="320" width="36" height="320" rx="18"/>
+    <rect x="556" y="360" width="36" height="240" rx="18"/>
+    <rect x="622" y="405" width="36" height="150" rx="18"/>
+    <rect x="688" y="445" width="36" height="70" rx="18"/>
+  </g>
+  <path d="M812 132Q830 194 892 212Q830 230 812 292Q794 230 732 212Q794 194 812 132Z" fill="#FDE68A"/>
+</svg>

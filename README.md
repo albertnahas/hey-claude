@@ -1,15 +1,28 @@
-# Hey Claude: voice wake word for Claude Code on macOS
+<p align="center">
+  <img src="assets/logo.png" width="128" height="128" alt="Hey Claude logo: a speech bubble with a sound wave">
+</p>
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)](#requirements)
-[![Swift](https://img.shields.io/badge/Swift-native-F05138?logo=swift&logoColor=white)](Sources/HeyClaude.swift)
-[![On-device](https://img.shields.io/badge/speech-on--device-2ea44f)](#privacy)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<h1 align="center">Hey Claude</h1>
 
-**Say "Hey Claude, what's wrong here?" anywhere on your Mac, and Claude sees your screen.** Hey Claude is a tiny,
-hands-free menu-bar app that listens for a wake word. When it hears one, it takes a screenshot of
-your whole desktop and opens a new [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-session with that screenshot, and the question you asked, already sent. Claude looks at your screen right away, and you keep
-talking to it in a terminal window.
+<p align="center"><b>Voice wake word for Claude Code on macOS.</b><br>
+Say "Hey Claude, why is this failing?" and Claude sees your screen.</p>
+
+<p align="center">
+  <img src="assets/demo.gif" width="800" alt="Demo: saying 'Hey Claude, why is this test failing?' opens a Claude Code session that reads the screenshot and explains the failing test">
+</p>
+
+<p align="center">
+  <a href="#requirements"><img src="https://img.shields.io/badge/macOS-14%2B-black?logo=apple" alt="macOS 14+"></a>
+  <a href="Sources/HeyClaude.swift"><img src="https://img.shields.io/badge/Swift-native-F05138?logo=swift&logoColor=white" alt="Swift"></a>
+  <a href="#privacy"><img src="https://img.shields.io/badge/speech-on--device-2ea44f" alt="On-device speech"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+</p>
+
+Hey Claude is a tiny, hands-free macOS menu-bar app that listens for a wake word. When it hears
+one, it takes a screenshot of your whole desktop and opens a new
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code) session with that screenshot, and
+the question you asked, already sent. Claude looks at your screen right away, and you keep talking
+to it in a terminal window.
 
 - 🎙️ **Voice activation, offline.** Uses Apple's on-device speech recognition. No audio leaves your Mac, and there's no API key or cloud wake-word service.
 - 🖥️ **Screen-aware AI assistant.** Captures every display and hands the screenshot to Claude as the first message.
