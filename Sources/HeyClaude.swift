@@ -50,9 +50,18 @@ final class WakeListener {
   private var task: SFSpeechRecognitionTask?
   private var rotation: Timer?
   private var wakePattern: NSRegularExpression?
-  private let onWake: () -> Void
+  /// Set from the wake phrase until the speaker pauses: what they said after it.
+  private var question: String?
+  private var pause: Timer?
+  private let onHeard: () -> Void
+  private let onWake: (String) -> Void
 
-  init(onWake: @escaping () -> Void) { self.onWake = onWake }
+  /// `onHeard`: the wake phrase was recognised. `onWake`: the speaker paused, with the
+  /// question that followed the phrase (empty when there was none).
+  init(onHeard: @escaping () -> Void, onWake: @escaping (String) -> Void) {
+    self.onHeard = onHeard
+    self.onWake = onWake
+  }
 
   func start() throws {
     let input = engine.inputNode
@@ -71,6 +80,8 @@ final class WakeListener {
 
   func stop() {
     rotation?.invalidate()
+    pause?.invalidate()
+    question = nil
     task?.cancel()
     swapRequest(nil)
     engine.inputNode.removeTap(onBus: 0)
@@ -86,8 +97,9 @@ final class WakeListener {
   }
 
   // One recognition task at a time, rotated every 50 s so transcripts stay short,
-  // and after every detection so the same utterance never fires twice.
+  // and after every wake so the same utterance never fires twice.
   private func beginTask() {
+    if question != nil { return finish() }  // never cut a question off mid-sentence
     task?.cancel()
     let req = SFSpeechAudioBufferRecognitionRequest()
     req.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
@@ -109,11 +121,22 @@ final class WakeListener {
   ) {
     guard req === request else { return }  // late callback from a rotated-out task
     if let text = result?.bestTranscription.formattedString,
-      wakePattern?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+      let match = wakePattern?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+      let end = Range(match.range, in: text)?.upperBound
     {
-      log("wake: \(text)")
-      beginTask()
-      onWake()
+      if question == nil { onHeard() }
+      // "Hey Claude, why…?" → "why…?": drop the separator, keep the question's own punctuation.
+      question = String(
+        text[end...].drop { $0.isWhitespace || $0.isPunctuation }
+      ).trimmingCharacters(in: .whitespaces)
+      // Each new partial result means they are still talking; fire after a 2 s pause.
+      pause?.invalidate()
+      pause = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { [weak self] _ in
+        self?.finish()
+      }
+      if result?.isFinal == true { finish() }
+    } else if question != nil, result?.isFinal == true || error != nil {
+      finish()
     } else if result?.isFinal == true || error != nil {
       // The recognizer ends a task after long silence; restart after a beat to avoid a hot loop.
       swapRequest(nil)
@@ -122,6 +145,15 @@ final class WakeListener {
         self.beginTask()
       }
     }
+  }
+
+  private func finish() {
+    guard let question else { return }
+    pause?.invalidate()
+    self.question = nil
+    log("wake (question: \(question.split(separator: " ").count) words)")
+    beginTask()
+    onWake(question)
   }
 }
 
@@ -151,10 +183,21 @@ final class AppModel: ObservableObject {
     }
   }
   private(set) var running = false
+  /// Between hearing the wake phrase and the speaker's pause.
+  private(set) var hearing = false
   var onChange: () -> Void = {}
 
   private lazy var listener: WakeListener = {
-    let listener = WakeListener { [weak self] in self?.wake() }
+    let listener = WakeListener(
+      onHeard: { [weak self] in
+        self?.hearing = true
+        self?.onChange()
+      },
+      onWake: { [weak self] question in
+        self?.hearing = false
+        self?.onChange()
+        self?.wake(question)
+      })
     listener.phrases = Self.parse(wakePhrases)
     return listener
   }()
@@ -182,12 +225,12 @@ final class AppModel: ObservableObject {
   func openConfig() { NSWorkspace.shared.open(configURL) }
   func showLog() { NSWorkspace.shared.open(logURL) }
 
-  private func wake() {
+  private func wake(_ question: String) {
     guard !busy else { return }
     busy = true
     let process = Process()
     process.executableURL = Bundle.main.url(forResource: "hey-claude", withExtension: "sh")
-    process.arguments = [String(NSScreen.screens.count)]
+    process.arguments = [String(NSScreen.screens.count), question]
     process.standardOutput = logHandle
     process.standardError = logHandle
     process.terminationHandler = { p in
@@ -283,7 +326,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func refreshIcon() {
-    let name = model.running ? "waveform" : "waveform.slash"
+    let name = model.hearing ? "ear" : model.running ? "waveform" : "waveform.slash"
     statusItem.button?.image = NSImage(systemSymbolName: name, accessibilityDescription: "Hey Claude")
     statusItem.button?.appearsDisabled = !model.running
   }

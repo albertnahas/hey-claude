@@ -5,10 +5,10 @@
 [![On-device](https://img.shields.io/badge/speech-on--device-2ea44f)](#privacy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Say "Hey Claude" anywhere on your Mac, and Claude sees your screen.** Hey Claude is a tiny,
+**Say "Hey Claude, what's wrong here?" anywhere on your Mac, and Claude sees your screen.** Hey Claude is a tiny,
 hands-free menu-bar app that listens for a wake word. When it hears one, it takes a screenshot of
 your whole desktop and opens a new [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-session with that screenshot already sent. Claude looks at your screen right away, and you keep
+session with that screenshot, and the question you asked, already sent. Claude looks at your screen right away, and you keep
 talking to it in a terminal window.
 
 - 🎙️ **Voice activation, offline.** Uses Apple's on-device speech recognition. No audio leaves your Mac, and there's no API key or cloud wake-word service.
@@ -57,11 +57,11 @@ AppKit, SwiftUI and ServiceManagement.
 
 ## Use it
 
-1. Say **"Hey Claude"** or **"Hello Claude"**.
-2. A chime confirms the screenshot, and a terminal window opens with Claude already looking at
-   your screen.
-3. Ask your question: *"what's wrong with this error?"*, *"summarise this page"*, *"reply to this
-   email"*.
+- **Ask in one breath:** *"Hey Claude, why is this test failing?"* The menu-bar icon turns into an
+  ear while you talk. When you pause, the screenshot and your question go to Claude together.
+- **Or just wake it:** *"Hello Claude."* Claude describes your screen and waits for you to type.
+
+A chime confirms the screenshot, and a terminal window opens with Claude already working.
 
 The waveform icon in the menu bar shows its state. A slashed icon means it isn't listening, and
 macOS's orange microphone dot goes away with it.
@@ -81,7 +81,8 @@ behind the notch, open *Hey Claude* from Spotlight instead.
 |---|---|---|
 | `WORKDIR` | `~/.hey-claude` | Folder Claude Code starts in. Claude Code asks you to trust it on the first wake. |
 | `CLAUDE_ARGS` | *(empty)* | Extra `claude` flags, e.g. `--model opus` |
-| `PROMPT` | "Here is a screenshot…" | First message. `{screenshots}` becomes the image path(s). |
+| `PROMPT` | "Here is a screenshot…" | First message when you say only the wake phrase. `{screenshots}` becomes the image path(s). |
+| `PROMPT_WITH_QUESTION` | "Here is a screenshot…" + `{question}` | First message when you keep talking after the wake phrase |
 | `TERMINAL_APP` | `auto` | `auto` uses a terminal that's already open, then any installed one. Or name one: `cmux`, `iterm`, `ghostty`, `wezterm`, `kitty`, `alacritty`, `terminal`. If it fails, the others are tried in turn. |
 | `KEEP_SCREENSHOTS_DAYS` | `7` | Older screenshots and session launchers in `~/.hey-claude` are deleted |
 
@@ -113,7 +114,8 @@ mic ─▶ on-device speech recognizer ─▶ wake phrase? ─▶ hey-claude.sh
 - Screenshots are saved to `~/.hey-claude/shots` and sent to Claude as part of the session,
   under your Claude Code account's data terms. Whatever is on screen goes with them, so switch
   Hey Claude off when sensitive information is showing.
-- The log at `~/Library/Logs/HeyClaude.log` records detections and errors, never what you say.
+- Your spoken question is transcribed on-device and goes only into the Claude session. The log at
+  `~/Library/Logs/HeyClaude.log` records detections and errors, never what you say.
 
 ## Troubleshooting
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Screenshot every display, start Claude Code with the screenshot as its first (already-sent)
 # message, and open it in a terminal window. Runs inside tmux when tmux is installed.
-# Usage: hey-claude.sh <display-count>      (macOS /bin/bash 3.2: no associative arrays)
+# Usage: hey-claude.sh <display-count> [question]   (macOS /bin/bash 3.2: no associative arrays)
 set -euo pipefail
 source "$(dirname "$0")/path.env"                    # PATH captured at install time
 export PATH="$PATH:/usr/bin:/bin:/usr/sbin"
@@ -23,8 +23,12 @@ afplay /System/Library/Sounds/Glass.aiff &
 
 read -ra claude_args <<<"$CLAUDE_ARGS"
 # env -u: a parent Claude Code session (or a tmux server started from one) leaks nesting markers.
+question=${2:-}
+if [[ -n $question ]]; then prompt=$PROMPT_WITH_QUESTION; else prompt=$PROMPT; fi
+prompt=${prompt//\{screenshots\}/${shots[*]}}
+prompt=${prompt//\{question\}/$question}
 claude_cmd=(env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_SSE_PORT
-  claude ${claude_args[@]+"${claude_args[@]}"} "${PROMPT//\{screenshots\}/${shots[*]}}")
+  claude ${claude_args[@]+"${claude_args[@]}"} "$prompt")
 
 if command -v tmux >/dev/null; then
   session="hey-claude-$ts"
